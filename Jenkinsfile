@@ -2,13 +2,13 @@
 pipeline {
     agent any
     tools {
-        maven "Maven-3.3.9"
-        jdk "Java-8"
+        maven "maven-default"
+        jdk "java-default"
     }
     environment{
         DEVELOPERS_EMAIL="musema.hassen@gmail.com"
         BUILD_FROM_BRANCH="master"
-        REPO_URL="https://github.com/musema/jenkins-pipeline-examples.git"
+        REPO_URL="https://github.com/musema/jenkins-pipeline-examples-2.git"
     }
     options{
         timeout(time:48,unit:'HOURS')
@@ -90,9 +90,9 @@ pipeline {
 //define groovy functions here
 def prepareWorkspace(){
     echo 'Check here if everything is ready to make a build'
-    sh 'mvn --version'
-    sh 'java -version'
-    sh 'git --version'
+    bat 'mvn --version'
+    bat 'java -version'
+    bat 'git --version'
 }
 def checkoutCode(){
     count=1
@@ -103,10 +103,10 @@ def checkoutCode(){
     }
 }
 def packageArtifact(){
-    sh 'mvn clean install -Dmaven.test.failure.ignore=true'
+    bat 'mvn clean install -Dmaven.test.failure.ignore=true'
 }
 def runTest(){
-    sh 'mvn test'
+    bat 'mvn test'
 }
 def uploadToRepository(){
     echo "We are about to publish artifacts to remote repository"
