@@ -110,7 +110,8 @@ def runTest(){
 }
 def uploadToRepository(){
     echo "We are about to publish artifacts to remote repository"
-    //mvn deploy
+    bat 'mvn deploy'
+    echo "Check if deployed to artifactory"
 }
 def archiveTheBuild(){
     archive '*/target/**/*'
@@ -135,6 +136,7 @@ def finalizeWorkflow(){
 def notifyBuild(bStatus) {
     def subject = "${bStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
     def details = """STARTED: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}]  \n Check console output at: ${env.BUILD_URL}"""
-    mail to:"${env.DEVELOPERS_EMAIL}",subject:"${subject}",body:"${details}"
+    echo "email sent"
+   // mail to:"${env.DEVELOPERS_EMAIL}",subject:"${subject}",body:"${details}"
 }
 
