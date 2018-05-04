@@ -7,8 +7,11 @@ pipeline {
     }
     environment{
         DEVELOPERS_EMAIL="musema.hassen@gmail.com"
-        BUILD_FROM_BRANCH="master"
+       
         REPO_URL="https://github.com/musema/jenkins-pipeline-examples-2.git"
+
+        MAVEN_TOOL="maven-default"
+        BUILD_FROM_BRANCH="develop"
     }
     options{
         timeout(time:48,unit:'HOURS')
@@ -22,6 +25,7 @@ pipeline {
             parallel{
                 stage('Code-Checkout'){
                     steps{
+                       echo "Source branch${env.BRANCH_NAME}"
                        checkoutCode()
                     }
                 }
@@ -30,8 +34,14 @@ pipeline {
                         prepareWorkspace()
                     }
                 }
+
             }
         }
+          stage('What-Is-Happening'){
+                    steps{
+                       echo "Change detected?:${whatIsHappening()}"
+                    }
+                }
         stage("Package") {
             steps {
                 packageArtifact()
@@ -42,9 +52,9 @@ pipeline {
                 runTest()
             }
         }
-        stage("Upload to Repository"){
+        stage("Upload to Artifactory"){
             steps{
-                uploadToRepository();
+                uploadToArtifactory();
             }
         }
         stage("Decide-Deployment"){
@@ -90,32 +100,49 @@ pipeline {
 //define groovy functions here
 def prepareWorkspace(){
     echo 'Check here if everything is ready to make a build'
-    bat 'mvn --version'
-    bat 'java -version'
-    bat 'git --version'
+    if(isUnix()){
+        echo 'Build is running on Unix family node '
+            sh 'mvn --version'
+            sh 'java -version'
+            sh 'git --version'
+    }
+    else{
+        echo 'Build is running on Windows family node '
+            bat 'mvn --version'
+            bat 'java -version'
+            bat 'git --version'
+    }
+   
 }
 def checkoutCode(){
     count=1
     retry(3){
         echo "trying to checkout the code from SCM, Trial:${count}"
         //git branch: "${BUILD_FROM_BRANCH}",credentialsId: "${GITHUB_CREDENTIALS_ID}",url: "${REPO_URL}"
-        git url:"${REPO_URL}"
+        git branch: "${BUILD_FROM_BRANCH}",url: "${REPO_URL}"
     }
 }
 def packageArtifact(){
-    bat 'mvn clean install -Dmaven.test.failure.ignore=true'
+    if(isUnix()){
+          sh 'mvn clean package -Dmaven.test.failure.ignore=true'
+    }
+    else{
+       bat 'mvn clean package -Dmaven.test.failure.ignore=true'
+    }
 }
 def runTest(){
-    bat 'mvn test'
+    if(isUnix()){
+          sh 'mvn test'
+    }
+    else{
+         bat 'mvn test'
+    }
+  
 }
-def uploadToRepository(){
-    echo "We are about to publish artifacts to remote repository"
-    bat 'mvn deploy'
-    echo "Check if deployed to artifactory"
-}
+
 def archiveTheBuild(){
-    archive '*/target/**/*'
-    //junit '*/target/surefire-reports/*.xml'
+    archiveArtifacts '/target/**/*'
+    junit '/target/surefire-reports/*.xml'
 
 }
 def deployToServer(deployTo){
@@ -137,6 +164,40 @@ def notifyBuild(bStatus) {
     def subject = "${bStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
     def details = """STARTED: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}]  \n Check console output at: ${env.BUILD_URL}"""
     echo "email sent"
-   // mail to:"${env.DEVELOPERS_EMAIL}",subject:"${subject}",body:"${details}"
+    //mail to:"${env.DEVELOPERS_EMAIL}",subject:"${subject}",body:"${details}"
+}
+
+def uploadToArtifactory(){
+echo "Publishing to Artifactory"
+
+    def server = Artifactory.server 'artifactory-default'
+    def rtMaven = Artifactory.newMavenBuild()
+    def buildInfo = Artifactory.newBuildInfo()
+
+    //Let's configure maven
+    rtMaven.tool = MAVEN_TOOL
+    rtMaven.resolver releaseRepo:'libs-release', snapshotRepo:'libs-snapshot', server: server
+    rtMaven.deployer releaseRepo:'libs-release-local', snapshotRepo:'libs-snapshot-local', server: server
+
+    buildInfo.env.capture = true
+
+    rtMaven.run pom: 'pom.xml', goals: 'clean install', buildInfo: buildInfo
+    buildInfo.retention maxBuilds: 10, maxDays: 15, deleteBuildArtifacts: true
+   
+    server.publishBuildInfo buildInfo 
+
+echo "Artifact is uploaded to Artifactory"
+}
+
+def whatIsHappening(){
+    if(env.CHANGE_ID==null){
+         echo "Nothing is happening, don't sweat it :D"
+         return false
+     }
+     else{
+        echo "Changes are detected, "
+        echo "Changes made by${env.CHANGE_AUTHOR}"
+        echo "Changes made by${env.CHANGE_TITLE}"
+     }
 }
 
